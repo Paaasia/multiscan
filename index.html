@@ -34,16 +34,23 @@
     <button id="connectBtn">1. YHDISTÄ LUKIJAAN</button>
 
     <div class="card">
-        <div class="label">Kohteen valinta (CAN Header)</div>
+        <div class="label">Automerkki</div>
+        <select id="brandSelect">
+            <option value="GENERIC">Yleinen (Standardi OBD2)</option>
+            <option value="VAG">VAG (VW, Audi, Skoda, Seat)</option>
+            <option value="FORD">Ford / Mazda</option>
+            <option value="VOLVO">Volvo</option>
+            <option value="TOYOTA">Toyota / Lexus</option>
+        </select>
+
+        <div class="label" style="margin-top: 10px;">Kohteen valinta (CAN Header)</div>
         <select id="presetSelect">
             <option value="7DF">Standardi OBD2 (Moottori, 7DF)</option>
-            <option value="7C0">Esimerkki: Ford/Volvo ABS (7C0)</option>
-            <option value="720">Esimerkki: VAG Mittaristo (720)</option>
             <option value="CUSTOM">Mukautettu osoite...</option>
         </select>
         <input type="text" id="customHeader" placeholder="Esim. 7A0" style="display:none;" maxlength="3">
 
-        <div class="label">Komento (Hex)</div>
+        <div class="label" style="margin-top: 10px;">Komento (Hex)</div>
         <select id="cmdSelect">
             <option value="03">OBD2: Lue vahvistetut koodit (03)</option>
             <option value="19020D">UDS: Lue koodit (19 02 0D)</option>
@@ -75,13 +82,74 @@
         logBox.scrollTop = logBox.scrollHeight;
     };
 
-    // UI Logiikka
+    // --- UUSI: Automerkkien CAN-osoitetietokanta ---
+    const brandData = {
+        "GENERIC": [
+            { val: "7DF", text: "Standardi OBD2 (Moottori, 7DF)" }
+        ],
+        "VAG": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "7E0", text: "Moottorinohjaus (7E0)" },
+            { val: "714", text: "Vaihteisto (714)" },
+            { val: "7A0", text: "ABS-jarrut (7A0)" },
+            { val: "7B0", text: "Airbag / SRS (7B0)" },
+            { val: "720", text: "Mittaristo (720)" }
+        ],
+        "FORD": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "7E0", text: "PCM (Moottori, 7E0)" },
+            { val: "760", text: "ABS-jarrut (760)" },
+            { val: "730", text: "RCM (Airbag, 730)" },
+            { val: "720", text: "IPC (Mittaristo, 720)" }
+        ],
+        "VOLVO": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "7E0", text: "ECM (Moottori, 7E0)" },
+            { val: "7C0", text: "BCM (ABS-jarrut, 7C0)" },
+            { val: "726", text: "CEM (Keskuselektroniikka, 726)" }
+        ],
+        "TOYOTA": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "7E0", text: "Moottori (7E0)" },
+            { val: "7B0", text: "Airbag (7B0)" },
+            { val: "7D0", text: "ABS / VSC (7D0)" }
+        ]
+    };
+
+    // UI Logiikka: Päivitetään ohjausyksiköiden lista automerkin mukaan
+    document.getElementById('brandSelect').addEventListener('change', (e) => {
+        const select = document.getElementById('presetSelect');
+        const customInput = document.getElementById('customHeader');
+        const brand = e.target.value;
+        
+        select.innerHTML = ''; // Tyhjennetään nykyiset
+        
+        if (brandData[brand]) {
+            brandData[brand].forEach(item => {
+                let opt = document.createElement('option');
+                opt.value = item.val;
+                opt.textContent = item.text;
+                select.appendChild(opt);
+            });
+        }
+        
+        // Lisätään aina "Mukautettu" vaihtoehto loppuun
+        let customOpt = document.createElement('option');
+        customOpt.value = "CUSTOM";
+        customOpt.textContent = "Mukautettu osoite...";
+        select.appendChild(customOpt);
+        
+        customInput.style.display = 'none';
+    });
+
     document.getElementById('presetSelect').addEventListener('change', (e) => {
         document.getElementById('customHeader').style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
     });
+    
     document.getElementById('cmdSelect').addEventListener('change', (e) => {
         document.getElementById('customCmd').style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
     });
+    
     document.getElementById('clearLogBtn').addEventListener('click', () => logBox.innerHTML = '');
 
     // Bluetooth Yhteys
