@@ -18,6 +18,7 @@
         input, select { width: 100%; padding: 10px; margin-bottom: 10px; background: #374151; border: 1px solid #4b5563; color: white; border-radius: 6px; box-sizing: border-box; }
         
         .row { display: flex; justify-content: space-between; gap: 10px; }
+        .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; margin-bottom: 15px; font-size: 0.85rem; color: #e5e7eb; cursor: pointer; }
         
         #log { margin-top: 10px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #34d399; background: #000; padding: 12px; border-radius: 8px; height: 250px; overflow-y: auto; border: 1px solid #065f46; white-space: pre-wrap;}
         .log-tx { color: #60a5fa; }
@@ -59,7 +60,12 @@
         </select>
         <input type="text" id="customCmd" placeholder="Esim. 19020B" style="display:none;">
 
-        <div class="row" style="margin-top: 10px;">
+        <label class="checkbox-row">
+            <input type="checkbox" id="wakeupCheck"> 
+            Lähetä UDS-herätys (10 03) ensin
+        </label>
+
+        <div class="row">
             <button class="action-btn" id="sendBtn" style="background:#0284c7;">LÄHETÄ KOMENTO</button>
             <button class="action-btn" id="clearLogBtn" style="background:#4b5563;">TYHJENNÄ LOKI</button>
         </div>
@@ -82,7 +88,6 @@
         logBox.scrollTop = logBox.scrollHeight;
     };
 
-    // --- UUSI: Automerkkien CAN-osoitetietokanta ---
     const brandData = {
         "GENERIC": [
             { val: "7DF", text: "Standardi OBD2 (Moottori, 7DF)" }
@@ -116,13 +121,12 @@
         ]
     };
 
-    // UI Logiikka: Päivitetään ohjausyksiköiden lista automerkin mukaan
     document.getElementById('brandSelect').addEventListener('change', (e) => {
         const select = document.getElementById('presetSelect');
         const customInput = document.getElementById('customHeader');
         const brand = e.target.value;
         
-        select.innerHTML = ''; // Tyhjennetään nykyiset
+        select.innerHTML = ''; 
         
         if (brandData[brand]) {
             brandData[brand].forEach(item => {
@@ -133,7 +137,6 @@
             });
         }
         
-        // Lisätään aina "Mukautettu" vaihtoehto loppuun
         let customOpt = document.createElement('option');
         customOpt.value = "CUSTOM";
         customOpt.textContent = "Mukautettu osoite...";
@@ -152,7 +155,6 @@
     
     document.getElementById('clearLogBtn').addEventListener('click', () => logBox.innerHTML = '');
 
-    // Bluetooth Yhteys
     document.getElementById('connectBtn').addEventListener('click', async () => {
         try {
             log("Etsitään laitteita...", "info");
@@ -181,7 +183,6 @@
         if (currentBuffer.includes(">")) {
             let cleanRes = currentBuffer.replace(/>/g, '').trim();
             if (cleanRes) {
-                // Poistetaan kaiutetut komennot selkeyden vuoksi
                 let lines = cleanRes.split('\r').filter(l => l.trim() !== '');
                 lines.forEach(line => log(line, "rx"));
             }
@@ -197,15 +198,14 @@
     }
 
     async function initELM327() {
-        await sendCommand("ATZ", 1000);   // Nollaus
-        await sendCommand("ATE0");        // Kaiutus pois päältä
-        await sendCommand("ATL0");        // Rivinvaihdot pois
-        await sendCommand("ATH1");        // Näytä CAN-osoitteet vastauksissa (tärkeä!)
-        await sendCommand("ATSP6");       // Pakota CAN-protokolla (yleisin nykyautoissa)
+        await sendCommand("ATZ", 1000);   
+        await sendCommand("ATE0");        
+        await sendCommand("ATL0");        
+        await sendCommand("ATH1");        
+        await sendCommand("ATSP6");       
         log("Alustus valmis. Voit nyt lähettää komentoja.", "info");
     }
 
-    // Komennon lähetys
     document.getElementById('sendBtn').addEventListener('click', async () => {
         if (!charWrite) {
             alert("Yhdistä ensin lukijaan!");
@@ -225,17 +225,21 @@
 
         log("--- Uusi kysely ---", "info");
         
-        // Asetetaan osoite
         if (header !== "7DF") {
-            await sendCommand("AT SH " + header); // Aseta CAN Header
-            await sendCommand("ATCRA " + (parseInt(header, 16) + 8).toString(16).toUpperCase()); // Aseta vastaanotto-osoite (yleensä lähetys + 8)
+            await sendCommand("AT SH " + header); 
+            await sendCommand("ATCRA " + (parseInt(header, 16) + 8).toString(16).toUpperCase()); 
         } else {
-            await sendCommand("ATZ"); // Resetoidaan vakiotilaan
+            await sendCommand("ATZ"); 
             await sendCommand("ATE0");
             await sendCommand("ATH1");
         }
 
-        // Lähetetään itse komento
+        // UUSI: Herätyskomento lähetetään tarvittaessa
+        if (document.getElementById('wakeupCheck').checked) {
+            log("-> UDS herätys (10 03)", "info");
+            await sendCommand("1003", 800);
+        }
+
         await sendCommand(cmd, 2000);
     });
 </script>
