@@ -44,12 +44,12 @@
             <option value="TOYOTA">Toyota / Lexus</option>
         </select>
 
-        <div class="label" style="margin-top: 10px;">Kohteen valinta (CAN Header)</div>
+        <div class="label" style="margin-top: 10px;">Kohteen valinta (Osoite / Header)</div>
         <select id="presetSelect">
             <option value="7DF">Standardi OBD2 (Moottori, 7DF)</option>
             <option value="CUSTOM">Mukautettu osoite...</option>
         </select>
-        <input type="text" id="customHeader" placeholder="Esim. 7A0" style="display:none;" maxlength="3">
+        <input type="text" id="customHeader" placeholder="Esim. 7A0" style="display:none;" maxlength="8">
 
         <div class="label" style="margin-top: 10px;">Komento (Hex)</div>
         <select id="cmdSelect">
@@ -195,11 +195,10 @@
         await sendCommand("ATE0");        
         await sendCommand("ATL0");        
         await sendCommand("ATH1");        
-        // --- UUSI: Automaattinen protokollan haku ---
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        await sendCommand("0100", 2500); // Pakottaa ELM327:n etsimään protokollan
-        await sendCommand("ATDP");       // Näytetään lokissa mikä protokolla löytyi
+        await sendCommand("0100", 2500); 
+        await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
     }
 
@@ -215,7 +214,9 @@
         
         if (header !== "7DF") {
             await sendCommand("AT SH " + header); 
-            await sendCommand("ATCRA " + (parseInt(header, 16) + 8).toString(16).toUpperCase()); 
+            // UUSI: ATCRA poistettu. Käytetään AT AR -komentoa (Auto Receive), 
+            // jotta lukija ei suodata vastauksia pois vahingossa.
+            await sendCommand("ATAR"); 
         } else {
             // Jos palataan standardiin, nollataan header-asetukset
             await sendCommand("ATAR"); 
