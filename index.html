@@ -109,7 +109,6 @@
         evSec.style.display = evSec.style.display === 'block' ? 'none' : 'block';
     });
 
-    // UUSI: VAG MQB-osoitteet lisätty listalle!
     const brandData = {
         "GENERIC": [{ val: "7DF", text: "Standardi OBD2 (Moottori, 7DF)" }],
         "VAG": [
@@ -222,7 +221,8 @@
         await sendCommand("ATH1");        
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        await sendCommand("0100", 2500); 
+        // KORJATTU: Pidennetty aikaa 2500 -> 4000, jotta SEARCHING... ehtii valmistua.
+        await sendCommand("0100", 4000); 
         await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
     }
@@ -248,7 +248,6 @@
         } else {
             await sendCommand("ATSP0"); 
             await sendCommand("ATAR"); 
-            // KORJATTU: Poistettu virheellinen ATRA 7E8 -komento, ATAR riittää palauttamaan oletuksen.
             await sendCommand("AT CRA"); 
         }
 
