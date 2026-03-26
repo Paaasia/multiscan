@@ -58,7 +58,7 @@
             <option value="7DF">Standardi OBD2 (Moottori, 7DF)</option>
             <option value="CUSTOM">Mukautettu osoite...</option>
         </select>
-        <input type="text" id="customHeader" placeholder="Esim. 7A0" style="display:none;" maxlength="8">
+        <input type="text" id="customHeader" placeholder="Esim. 7A0 tai 18DA28F1" style="display:none;" maxlength="8">
 
         <div class="label" style="margin-top: 10px;">Komento (Hex)</div>
         <select id="cmdSelect">
@@ -148,9 +148,14 @@
         ],
         "VOLVO": [
             { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
-            { val: "7E0", text: "ECM (Moottori, 7E0)" },
-            { val: "7C0", text: "BCM (ABS-jarrut, 7C0)" },
-            { val: "726", text: "CEM (Keskuselektroniikka, 726)" }
+            { val: "7E0", text: "ECM 11-bit (Moottori, 7E0)" },
+            { val: "7C0", text: "BCM 11-bit (ABS-jarrut, 7C0)" },
+            { val: "726", text: "CEM 11-bit (Keskuselektr., 726)" },
+            // UUSI: 29-bittiset osoitteet Volvolle ja Fordille
+            { val: "18DA10F1", text: "ECM 29-bit (Moottori, 18DA10F1)" },
+            { val: "18DA28F1", text: "BCM 29-bit (ABS-jarrut, 18DA28F1)" },
+            { val: "18DA58F1", text: "SRS 29-bit (Airbag, 18DA58F1)" },
+            { val: "18DA60F1", text: "DIM 29-bit (Mittaristo, 18DA60F1)" }
         ],
         "TOYOTA": [
             { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
@@ -268,7 +273,7 @@
             } else if (header.length === 6) {
                 await sendCommand("ATSP5"); 
             } else {
-                await sendCommand("ATSP7"); 
+                await sendCommand("ATSP7"); // Käyttää 29-bittistä CAN-protokollaa
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
@@ -291,16 +296,20 @@
         
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
         
+        // UUSI: Lisätty 29-bittiset standardiosoitteet skannauskiertueelle
         const addrsToTest = [
+            // 11-bit
             "710", "713", "714", "715", "716", "717", "720", "726", 
             "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2",
-            "8110F3", "8128F3", "8158F3" 
+            // K-Line
+            "8110F3", "8128F3", "8158F3",
+            // 29-bit
+            "18DA10F1", "18DA18F1", "18DA28F1", "18DA40F1", "18DA58F1", "18DA60F1"
         ];
         
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
             
-            // KORJATTU: Annetaan K-Linelle (pituus 6) enemmän aikaa epäonnistua
             if (addr.length <= 3) {
                 await sendCommand("ATSP6", 300);
                 await sendCommand("AT SH " + addr, 300);
@@ -310,8 +319,9 @@
                 await sendCommand("ATSP5", 300);
                 await sendCommand("AT SH " + addr, 300);
                 await sendCommand("ATAR", 300);
-                await sendCommand("1003", 3500); // 3,5 sekuntia K-Linelle!
+                await sendCommand("1003", 3500); 
             } else {
+                // 29-bit CAN pakotus
                 await sendCommand("ATSP7", 300);
                 await sendCommand("AT SH " + addr, 300);
                 await sendCommand("ATAR", 300);
