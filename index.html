@@ -24,6 +24,11 @@
         .log-tx { color: #60a5fa; }
         .log-rx { color: #fcd34d; }
         .log-info { color: #9ca3af; }
+
+        /* UUSI: Sähköautovalikon tyylit */
+        #toggleEvBtn { background: #1e1b4b; border: 1px solid #6366f1; color: #a5b4fc; margin-top: 10px; }
+        #toggleEvBtn:hover { background: #312e81; }
+        .ev-card { border-left: 4px solid #8b5cf6; display: none; } 
     </style>
 </head>
 <body>
@@ -71,6 +76,18 @@
         </div>
     </div>
 
+    <button id="toggleEvBtn">⚡ SÄHKÖAUTON SOH-TARKASTUS</button>
+    <div id="evSection" class="card ev-card">
+        <div class="label">Valitse sähköauton tyyppi</div>
+        <select id="evSelect">
+            <option value="KIA_HYUNDAI">Hyundai / Kia (BMS: 7E4)</option>
+            <option value="VAG_MEB">VAG Sähköautot (ID.3, Enyaq jne. BMS: 176)</option>
+            <option value="NISSAN_LEAF">Nissan Leaf (BMS: 79B)</option>
+        </select>
+        <button id="readSohBtn" style="background:#8b5cf6; margin-top:10px;">LUE AKUN KUNTO (SoH RAAKADATA)</button>
+        <p style="font-size: 0.65rem; color: #9ca3af; margin-top: 5px; margin-bottom: 0;">Huom: Tämä hakee akunhallinnan (BMS) raakadatan lokiin. Prosentin laskenta riippuu täysin automallista.</p>
+    </div>
+
     <div id="log"><span class="log-info">Odottaa yhdistämistä...</span><br></div>
 </div>
 
@@ -87,6 +104,12 @@
         logBox.innerHTML += `<span class="${colorClass}">${prefix}${msg}</span><br>`; 
         logBox.scrollTop = logBox.scrollHeight;
     };
+
+    // EV-valikon piilotus/näyttö
+    document.getElementById('toggleEvBtn').addEventListener('click', () => {
+        const evSec = document.getElementById('evSection');
+        evSec.style.display = evSec.style.display === 'block' ? 'none' : 'block';
+    });
 
     const brandData = {
         "GENERIC": [{ val: "7DF", text: "Standardi OBD2 (Moottori, 7DF)" }],
@@ -202,6 +225,7 @@
         log("Alustus valmis.", "info");
     }
 
+    // Alkuperäinen komennon lähetys
     document.getElementById('sendBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
 
@@ -213,16 +237,14 @@
         log("--- Uusi kysely ---", "info");
         
         if (header !== "7DF") {
-            // UUSI KORJAUS: Pakotetaan oikea protokolla osoitteen pituuden mukaan
             if (header.length <= 3) {
-                await sendCommand("ATSP6"); // 11-bit CAN (esim. 7C0)
+                await sendCommand("ATSP6"); 
             } else {
-                await sendCommand("ATSP7"); // 29-bit CAN (esim. 18DAF110)
+                await sendCommand("ATSP7"); 
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
         } else {
-            // Palautetaan OBD2-vakioon
             await sendCommand("ATSP0"); 
             await sendCommand("ATAR"); 
             await sendCommand("ATRA 7E8"); 
@@ -234,6 +256,39 @@
         }
 
         await sendCommand(cmd, 2000);
+    });
+
+    // UUSI: Sähköautojen SoH-lukulogiikka
+    document.getElementById('readSohBtn').addEventListener('click', async () => {
+        if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
+        
+        const evModel = document.getElementById('evSelect').value;
+        log("--- Aloitetaan EV SoH -kysely ---", "info");
+
+        if (evModel === "KIA_HYUNDAI") {
+            await sendCommand("ATSP6");
+            await sendCommand("AT SH 7E4"); // BMS-osoite Hyundai/Kia
+            await sendCommand("ATAR");
+            log("-> Kysytään BMS-data (Komento: 2105)", "info");
+            await sendCommand("2105", 2500);
+        } 
+        else if (evModel === "VAG_MEB") {
+            await sendCommand("ATSP6");
+            await sendCommand("AT SH 176"); // BMS-osoite MEB-alustassa
+            await sendCommand("ATAR");
+            log("-> Kysytään BMS-data (Komento: 22 02 8C)", "info");
+            await sendCommand("22028C", 2500);
+        } 
+        else if (evModel === "NISSAN_LEAF") {
+            await sendCommand("ATSP6");
+            await sendCommand("AT SH 79B"); // BMS-osoite Leafissa
+            await sendCommand("ATAR");
+            log("-> Kysytään BMS-data (Komento: 2101)", "info");
+            await sendCommand("2101", 2500);
+        }
+
+        log("- Kysely valmis. Jos sait dataa (esim. 61 05...),", "info");
+        log("- voimme tulkita SoH-prosentin raakadatasta!", "info");
     });
 </script>
 </body>
