@@ -29,7 +29,6 @@
         #toggleEvBtn:hover { background: #312e81; }
         .ev-card { border-left: 4px solid #8b5cf6; display: none; } 
 
-        /* UUSI: Skannerin tyylit */
         #toggleScanBtn { background: #064e3b; border: 1px solid #10b981; color: #a7f3d0; margin-top: 10px; }
         #toggleScanBtn:hover { background: #065f46; }
         .scan-card { border-left: 4px solid #10b981; display: none; }
@@ -51,7 +50,7 @@
             <option value="FORD">Ford / Mazda</option>
             <option value="VOLVO">Volvo</option>
             <option value="TOYOTA">Toyota / Lexus</option>
-        </select>
+            <option value="NISSAN">Nissan</option> </select>
 
         <div class="label" style="margin-top: 10px;">Kohteen valinta (Osoite / Header)</div>
         <select id="presetSelect">
@@ -82,7 +81,7 @@
 
     <button id="toggleScanBtn">🔍 ETSI AUTON OHJAINLAITTEET (SKANNAUS)</button>
     <div id="scanSection" class="card scan-card">
-        <div class="label">Automaattinen CAN-verkon skannaus</div>
+        <div class="label">Automaattinen CAN/KWP-verkon skannaus</div>
         <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 0;">Ohjelma "koputtaa" yleisimpiin ohjainlaiteosoitteisiin. Seuraa lokia: jos jokin osoite vastaa muuta kuin "NO DATA", sieltä löytyi ohjainlaite!</p>
         <button id="startScanBtn" style="background:#10b981; margin-top:10px;">ALOITA PIKASKANNAUS</button>
     </div>
@@ -121,7 +120,6 @@
         evSec.style.display = evSec.style.display === 'block' ? 'none' : 'block';
     });
 
-    // UUSI: Skannerin piilotus/näyttö
     document.getElementById('toggleScanBtn').addEventListener('click', () => {
         const scanSec = document.getElementById('scanSection');
         scanSec.style.display = scanSec.style.display === 'block' ? 'none' : 'block';
@@ -158,6 +156,15 @@
             { val: "7E0", text: "Moottori (7E0)" },
             { val: "7B0", text: "Airbag (7B0)" },
             { val: "7D0", text: "ABS / VSC (7D0)" }
+        ],
+        "NISSAN": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "8110F3", text: "Moottori KWP (Vanhemmat, 8110F3)" },
+            { val: "8128F3", text: "ABS KWP (Vanhemmat, 8128F3)" },
+            { val: "8158F3", text: "Airbag KWP (Vanhemmat, 8158F3)" },
+            { val: "7E0", text: "Moottori CAN (Uudemmat, 7E0)" },
+            { val: "714", text: "Vaihteisto CAN (Uudemmat, 714)" },
+            { val: "74B", text: "ABS CAN (Uudemmat, 74B)" }
         ]
     };
 
@@ -239,7 +246,8 @@
         await sendCommand("ATH1");        
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        await sendCommand("0100", 4000); 
+        // KORJATTU: Pidennetty aikaa 4000 -> 6000, jotta hidas K-Line ehtii yhdistää ilman STOPPED-virhettä.
+        await sendCommand("0100", 6000); 
         await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
     }
@@ -255,10 +263,13 @@
         log("--- Uusi kysely ---", "info");
         
         if (header !== "7DF") {
+            // KORJATTU: Automaattinen protokollan valinta osoitteen pituuden mukaan (tukee nyt K-Lineä)
             if (header.length <= 3) {
-                await sendCommand("ATSP6"); 
+                await sendCommand("ATSP6"); // CAN 11-bit
+            } else if (header.length === 6) {
+                await sendCommand("ATSP5"); // KWP2000 Fast Init (K-Line)
             } else {
-                await sendCommand("ATSP7"); 
+                await sendCommand("ATSP7"); // CAN 29-bit
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
@@ -276,24 +287,32 @@
         await sendCommand(cmd, 2000);
     });
 
-    // UUSI: Verkon automaattisen skannauksen logiikka
     document.getElementById('startScanBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
-        await sendCommand("ATSP6"); // Oletetaan 11-bit CAN, yleisin näille moduuleille
         
-        // Yleisimmät VAG, Ford, Volvo ja Toyota sisätilan/alustan moduuliosoitteet
+        // KORJATTU: Skanneri testaa nyt CAN-osoitteiden lisäksi K-Line -osoitteita
         const addrsToTest = [
             "710", "713", "714", "715", "716", "717", "720", "726", 
-            "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2"
+            "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2",
+            "8110F3", "8128F3", "8158F3" // K-Line (Nissan jne.)
         ];
         
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
+            
+            // Vaihdetaan oikea protokolla lennosta
+            if (addr.length <= 3) {
+                await sendCommand("ATSP6", 300);
+            } else if (addr.length === 6) {
+                await sendCommand("ATSP5", 300);
+            } else {
+                await sendCommand("ATSP7", 300);
+            }
+            
             await sendCommand("AT SH " + addr, 300);
             await sendCommand("ATAR", 300);
-            // Lähetetään heräte/ping
             await sendCommand("1003", 1000); 
         }
         
