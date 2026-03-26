@@ -28,6 +28,11 @@
         #toggleEvBtn { background: #1e1b4b; border: 1px solid #6366f1; color: #a5b4fc; margin-top: 10px; }
         #toggleEvBtn:hover { background: #312e81; }
         .ev-card { border-left: 4px solid #8b5cf6; display: none; } 
+
+        /* UUSI: Skannerin tyylit */
+        #toggleScanBtn { background: #064e3b; border: 1px solid #10b981; color: #a7f3d0; margin-top: 10px; }
+        #toggleScanBtn:hover { background: #065f46; }
+        .scan-card { border-left: 4px solid #10b981; display: none; }
     </style>
 </head>
 <body>
@@ -75,6 +80,13 @@
         </div>
     </div>
 
+    <button id="toggleScanBtn">🔍 ETSI AUTON OHJAINLAITTEET (SKANNAUS)</button>
+    <div id="scanSection" class="card scan-card">
+        <div class="label">Automaattinen CAN-verkon skannaus</div>
+        <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 0;">Ohjelma "koputtaa" yleisimpiin ohjainlaiteosoitteisiin. Seuraa lokia: jos jokin osoite vastaa muuta kuin "NO DATA", sieltä löytyi ohjainlaite!</p>
+        <button id="startScanBtn" style="background:#10b981; margin-top:10px;">ALOITA PIKASKANNAUS</button>
+    </div>
+
     <button id="toggleEvBtn">⚡ SÄHKÖAUTON SOH-TARKASTUS</button>
     <div id="evSection" class="card ev-card">
         <div class="label">Valitse sähköauton tyyppi</div>
@@ -107,6 +119,12 @@
     document.getElementById('toggleEvBtn').addEventListener('click', () => {
         const evSec = document.getElementById('evSection');
         evSec.style.display = evSec.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // UUSI: Skannerin piilotus/näyttö
+    document.getElementById('toggleScanBtn').addEventListener('click', () => {
+        const scanSec = document.getElementById('scanSection');
+        scanSec.style.display = scanSec.style.display === 'block' ? 'none' : 'block';
     });
 
     const brandData = {
@@ -221,7 +239,6 @@
         await sendCommand("ATH1");        
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        // KORJATTU: Pidennetty aikaa 2500 -> 4000, jotta SEARCHING... ehtii valmistua.
         await sendCommand("0100", 4000); 
         await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
@@ -257,6 +274,31 @@
         }
 
         await sendCommand(cmd, 2000);
+    });
+
+    // UUSI: Verkon automaattisen skannauksen logiikka
+    document.getElementById('startScanBtn').addEventListener('click', async () => {
+        if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
+        
+        log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
+        await sendCommand("ATSP6"); // Oletetaan 11-bit CAN, yleisin näille moduuleille
+        
+        // Yleisimmät VAG, Ford, Volvo ja Toyota sisätilan/alustan moduuliosoitteet
+        const addrsToTest = [
+            "710", "713", "714", "715", "716", "717", "720", "726", 
+            "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2"
+        ];
+        
+        for(let addr of addrsToTest) {
+            log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
+            await sendCommand("AT SH " + addr, 300);
+            await sendCommand("ATAR", 300);
+            // Lähetetään heräte/ping
+            await sendCommand("1003", 1000); 
+        }
+        
+        log("--- SKANNAUS VALMIS ---", "info");
+        log("Tarkista ylempää lokista, mitkä osoitteet vastasivat!", "info");
     });
 
     document.getElementById('readSohBtn').addEventListener('click', async () => {
