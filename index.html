@@ -213,12 +213,17 @@
         log("--- Uusi kysely ---", "info");
         
         if (header !== "7DF") {
+            // UUSI KORJAUS: Pakotetaan oikea protokolla osoitteen pituuden mukaan
+            if (header.length <= 3) {
+                await sendCommand("ATSP6"); // 11-bit CAN (esim. 7C0)
+            } else {
+                await sendCommand("ATSP7"); // 29-bit CAN (esim. 18DAF110)
+            }
             await sendCommand("AT SH " + header); 
-            // UUSI: ATCRA poistettu. Käytetään AT AR -komentoa (Auto Receive), 
-            // jotta lukija ei suodata vastauksia pois vahingossa.
             await sendCommand("ATAR"); 
         } else {
-            // Jos palataan standardiin, nollataan header-asetukset
+            // Palautetaan OBD2-vakioon
+            await sendCommand("ATSP0"); 
             await sendCommand("ATAR"); 
             await sendCommand("ATRA 7E8"); 
         }
