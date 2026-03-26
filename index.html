@@ -50,7 +50,8 @@
             <option value="FORD">Ford / Mazda</option>
             <option value="VOLVO">Volvo</option>
             <option value="TOYOTA">Toyota / Lexus</option>
-            <option value="NISSAN">Nissan</option> </select>
+            <option value="NISSAN">Nissan</option>
+        </select>
 
         <div class="label" style="margin-top: 10px;">Kohteen valinta (Osoite / Header)</div>
         <select id="presetSelect">
@@ -246,7 +247,6 @@
         await sendCommand("ATH1");        
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        // KORJATTU: Pidennetty aikaa 4000 -> 6000, jotta hidas K-Line ehtii yhdistää ilman STOPPED-virhettä.
         await sendCommand("0100", 6000); 
         await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
@@ -263,13 +263,12 @@
         log("--- Uusi kysely ---", "info");
         
         if (header !== "7DF") {
-            // KORJATTU: Automaattinen protokollan valinta osoitteen pituuden mukaan (tukee nyt K-Lineä)
             if (header.length <= 3) {
-                await sendCommand("ATSP6"); // CAN 11-bit
+                await sendCommand("ATSP6"); 
             } else if (header.length === 6) {
-                await sendCommand("ATSP5"); // KWP2000 Fast Init (K-Line)
+                await sendCommand("ATSP5"); 
             } else {
-                await sendCommand("ATSP7"); // CAN 29-bit
+                await sendCommand("ATSP7"); 
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
@@ -292,28 +291,32 @@
         
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
         
-        // KORJATTU: Skanneri testaa nyt CAN-osoitteiden lisäksi K-Line -osoitteita
         const addrsToTest = [
             "710", "713", "714", "715", "716", "717", "720", "726", 
             "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2",
-            "8110F3", "8128F3", "8158F3" // K-Line (Nissan jne.)
+            "8110F3", "8128F3", "8158F3" 
         ];
         
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
             
-            // Vaihdetaan oikea protokolla lennosta
+            // KORJATTU: Annetaan K-Linelle (pituus 6) enemmän aikaa epäonnistua
             if (addr.length <= 3) {
                 await sendCommand("ATSP6", 300);
+                await sendCommand("AT SH " + addr, 300);
+                await sendCommand("ATAR", 300);
+                await sendCommand("1003", 1000); 
             } else if (addr.length === 6) {
                 await sendCommand("ATSP5", 300);
+                await sendCommand("AT SH " + addr, 300);
+                await sendCommand("ATAR", 300);
+                await sendCommand("1003", 3500); // 3,5 sekuntia K-Linelle!
             } else {
                 await sendCommand("ATSP7", 300);
+                await sendCommand("AT SH " + addr, 300);
+                await sendCommand("ATAR", 300);
+                await sendCommand("1003", 1000); 
             }
-            
-            await sendCommand("AT SH " + addr, 300);
-            await sendCommand("ATAR", 300);
-            await sendCommand("1003", 1000); 
         }
         
         log("--- SKANNAUS VALMIS ---", "info");
