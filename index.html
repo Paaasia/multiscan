@@ -151,8 +151,8 @@
             { val: "7E0", text: "ECM 11-bit (Moottori, 7E0)" },
             { val: "7C0", text: "BCM 11-bit (ABS-jarrut, 7C0)" },
             { val: "726", text: "CEM 11-bit (Keskuselektr., 726)" },
-            // UUSI: 29-bittiset osoitteet Volvolle ja Fordille
             { val: "18DA10F1", text: "ECM 29-bit (Moottori, 18DA10F1)" },
+            { val: "18DA18F1", text: "TCM 29-bit (Vaihteisto, 18DA18F1)" }, // Lisätty C30 löydöksen perusteella
             { val: "18DA28F1", text: "BCM 29-bit (ABS-jarrut, 18DA28F1)" },
             { val: "18DA58F1", text: "SRS 29-bit (Airbag, 18DA58F1)" },
             { val: "18DA60F1", text: "DIM 29-bit (Mittaristo, 18DA60F1)" }
@@ -273,7 +273,7 @@
             } else if (header.length === 6) {
                 await sendCommand("ATSP5"); 
             } else {
-                await sendCommand("ATSP7"); // Käyttää 29-bittistä CAN-protokollaa
+                await sendCommand("ATSP7"); 
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
@@ -296,14 +296,10 @@
         
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
         
-        // UUSI: Lisätty 29-bittiset standardiosoitteet skannauskiertueelle
         const addrsToTest = [
-            // 11-bit
             "710", "713", "714", "715", "716", "717", "720", "726", 
             "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2",
-            // K-Line
-            "8110F3", "8128F3", "8158F3",
-            // 29-bit
+            "8110F3", "8128F3", "8158F3", 
             "18DA10F1", "18DA18F1", "18DA28F1", "18DA40F1", "18DA58F1", "18DA60F1"
         ];
         
@@ -321,7 +317,6 @@
                 await sendCommand("ATAR", 300);
                 await sendCommand("1003", 3500); 
             } else {
-                // 29-bit CAN pakotus
                 await sendCommand("ATSP7", 300);
                 await sendCommand("AT SH " + addr, 300);
                 await sendCommand("ATAR", 300);
