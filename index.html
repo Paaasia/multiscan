@@ -142,6 +142,7 @@
         "FORD": [
             { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
             { val: "7E0", text: "PCM (Moottori, 7E0)" },
+            { val: "7E1", text: "TCM (Vaihteisto, 7E1)" }, // Lisätty Mazda-löydöksen perusteella
             { val: "760", text: "ABS-jarrut (760)" },
             { val: "730", text: "RCM (Airbag, 730)" },
             { val: "720", text: "IPC (Mittaristo, 720)" }
@@ -152,7 +153,7 @@
             { val: "7C0", text: "BCM 11-bit (ABS-jarrut, 7C0)" },
             { val: "726", text: "CEM 11-bit (Keskuselektr., 726)" },
             { val: "18DA10F1", text: "ECM 29-bit (Moottori, 18DA10F1)" },
-            { val: "18DA18F1", text: "TCM 29-bit (Vaihteisto, 18DA18F1)" }, // Lisätty C30 löydöksen perusteella
+            { val: "18DA18F1", text: "TCM 29-bit (Vaihteisto, 18DA18F1)" }, 
             { val: "18DA28F1", text: "BCM 29-bit (ABS-jarrut, 18DA28F1)" },
             { val: "18DA58F1", text: "SRS 29-bit (Airbag, 18DA58F1)" },
             { val: "18DA60F1", text: "DIM 29-bit (Mittaristo, 18DA60F1)" }
@@ -298,7 +299,7 @@
         
         const addrsToTest = [
             "710", "713", "714", "715", "716", "717", "720", "726", 
-            "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E2",
+            "730", "760", "79B", "7A0", "7B0", "7C0", "7D0", "7E0", "7E1", "7E2", // 7E1 lisätty
             "8110F3", "8128F3", "8158F3", 
             "18DA10F1", "18DA18F1", "18DA28F1", "18DA40F1", "18DA58F1", "18DA60F1"
         ];
