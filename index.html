@@ -51,7 +51,7 @@
             <option value="VOLVO">Volvo</option>
             <option value="TOYOTA">Toyota / Lexus</option>
             <option value="NISSAN">Nissan</option>
-        </select>
+            <option value="MERCEDES">Mercedes-Benz</option> </select>
 
         <div class="label" style="margin-top: 10px;">Kohteen valinta (Osoite / Header)</div>
         <select id="presetSelect">
@@ -118,7 +118,6 @@
     const encoder = new TextEncoder();
     let currentBuffer = "";
     
-    // UUDET MUUTTUJAT SKANNERILLE
     let discoveredModules = [];
     let lastResponseStr = ""; 
 
@@ -186,6 +185,11 @@
             { val: "7E0", text: "Moottori CAN (Uudemmat, 7E0)" },
             { val: "714", text: "Vaihteisto CAN (Uudemmat, 714)" },
             { val: "74B", text: "ABS CAN (Uudemmat, 74B)" }
+        ],
+        "MERCEDES": [
+            { val: "7DF", text: "Standardi OBD2 (Yleinen huuto, 7DF)" },
+            { val: "7E0", text: "Moottorinohjaus (7E0)" },
+            { val: "7E1", text: "Vaihteisto (7E1)" }
         ]
     };
 
@@ -241,13 +245,12 @@
         } catch (e) { log("Virhe: " + e.message, "info"); }
     });
 
-    // PÄIVITETTY: Tallennetaan viimeisin vastaus muuttujaan logiikkaa varten
     function handleResponse(e) {
         currentBuffer += decoder.decode(e.target.value);
         if (currentBuffer.includes(">")) {
             let cleanRes = currentBuffer.replace(/>/g, '').trim();
             if (cleanRes) {
-                lastResponseStr = cleanRes; // Tallenetaan skanneria varten
+                lastResponseStr = cleanRes; 
                 let lines = cleanRes.split('\r').filter(l => l.trim() !== '');
                 lines.forEach(line => log(line, "rx"));
             }
@@ -324,7 +327,7 @@
         
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
-            lastResponseStr = ""; // Nollataan vanha vastaus
+            lastResponseStr = ""; 
             
             if (addr.length <= 3) {
                 await sendCommand("ATSP6", 300);
@@ -343,7 +346,6 @@
                 await sendCommand("1003", 1000); 
             }
 
-            // PÄIVITETTY: Tarkistetaan, vastasiko ketään ja tallennetaan lista
             let res = lastResponseStr.toUpperCase();
             if (res !== "" && !res.includes("NO DATA") && !res.includes("ERROR") && !res.includes("?")) {
                 discoveredModules.push(addr);
@@ -352,7 +354,6 @@
         
         log("--- SKANNAUS VALMIS ---", "info");
         
-        // Luodaan uusi valikko löydetyistä ohjainlaitteista
         if (discoveredModules.length > 0) {
             const fSelect = document.getElementById('foundSelect');
             fSelect.innerHTML = '';
@@ -360,7 +361,6 @@
                 let opt = document.createElement('option');
                 opt.value = addr;
                 
-                // Yritetään kaivaa selkokielinen nimi sanakirjasta
                 let nameFound = false;
                 for (let brand in brandData) {
                     let match = brandData[brand].find(item => item.val === addr);
@@ -381,7 +381,6 @@
         }
     });
 
-    // UUSI: Helper-funktio automaattiseen lukuun
     async function readDiscoveredModule(addr, cmd) {
         if (addr.length <= 3) {
             await sendCommand("ATSP6", 300);
@@ -400,7 +399,6 @@
         await sendCommand(cmd, 2500);
     }
 
-    // UUSI: Napit automaattista lukua varten
     document.getElementById('readSelectedBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         let addr = document.getElementById('foundSelect').value;
