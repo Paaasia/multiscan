@@ -128,11 +128,22 @@
     let lastResponseStr = ""; 
 
     const logBox = document.getElementById('log');
+
+    // UUSI OMINAISUUS: Palautetaan selaimen muistista vanha loki, jos sellainen on
+    const savedLog = localStorage.getItem('nexlink_log');
+    if (savedLog) {
+        logBox.innerHTML = savedLog;
+        setTimeout(() => logBox.scrollTop = logBox.scrollHeight, 100);
+    }
+
     const log = (msg, type = 'info') => { 
         let colorClass = type === 'tx' ? 'log-tx' : (type === 'rx' ? 'log-rx' : 'log-info');
         let prefix = type === 'tx' ? 'Lähetetty: ' : (type === 'rx' ? 'Vastaus:   ' : '');
         logBox.innerHTML += `<span class="${colorClass}">${prefix}${msg}</span><br>`; 
         logBox.scrollTop = logBox.scrollHeight;
+        
+        // UUSI OMINAISUUS: Tallennetaan jatkuvasti välimuistiin
+        localStorage.setItem('nexlink_log', logBox.innerHTML);
     };
 
     document.getElementById('toggleEvBtn').addEventListener('click', () => {
@@ -226,7 +237,11 @@
         document.getElementById('customCmd').style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
     });
     
-    document.getElementById('clearLogBtn').addEventListener('click', () => logBox.innerHTML = '');
+    // UUSI OMINAISUUS: Poistaa muistin myös "kovalevyltä" kun painetaan nappia
+    document.getElementById('clearLogBtn').addEventListener('click', () => {
+        logBox.innerHTML = '';
+        localStorage.removeItem('nexlink_log');
+    });
 
     document.getElementById('connectBtn').addEventListener('click', async () => {
         try {
@@ -283,13 +298,12 @@
         log("Alustus valmis.", "info");
     }
 
-    // UUSI FUNKTIO: VAG Gateway Herätys
     async function triggerVagWakeup() {
         log("--- VAG Gateway (710) Herätys ---", "info");
         await sendCommand("ATSP6", 300);
         await sendCommand("AT SH 710", 300);
         await sendCommand("ATAR", 300);
-        await sendCommand("1003", 1500); // Extended Diagnostic Session
+        await sendCommand("1003", 1500); 
     }
 
     document.getElementById('sendBtn').addEventListener('click', async () => {
@@ -302,7 +316,6 @@
 
         log("--- Uusi kysely ---", "info");
 
-        // VAG HERÄTYS (Jos valittu)
         if (document.getElementById('vagWakeupCheck').checked) {
             await triggerVagWakeup();
         }
@@ -338,7 +351,6 @@
         discoveredModules = [];
         document.getElementById('foundModulesSection').style.display = 'none';
 
-        // VAG HERÄTYS (Jos valittu)
         if (document.getElementById('vagWakeupCheck').checked) {
             await triggerVagWakeup();
         }
@@ -432,7 +444,6 @@
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         let addr = document.getElementById('foundSelect').value;
         
-        // VAG HERÄTYS (Jos valittu)
         if (document.getElementById('vagWakeupCheck').checked) {
             await triggerVagWakeup();
         }
@@ -444,7 +455,6 @@
     document.getElementById('readAllBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         
-        // VAG HERÄTYS (Jos valittu)
         if (document.getElementById('vagWakeupCheck').checked) {
             await triggerVagWakeup();
         }
