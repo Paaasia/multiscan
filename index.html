@@ -51,9 +51,10 @@
             <option value="VOLVO">Volvo</option>
             <option value="TOYOTA">Toyota / Lexus</option>
             <option value="NISSAN">Nissan</option>
-            <option value="MERCEDES">Mercedes-Benz</option> </select>
+            <option value="MERCEDES">Mercedes-Benz</option>
+        </select>
 
-        <div class="label" style="margin-top: 10px;">Kohteen valinta (Osoite / Header)</div>
+        <div class="label" style="margin-top: 10px;">Kohteen valinta (Manuaalinen luku)</div>
         <select id="presetSelect">
             <option value="7DF">Standardi OBD2 (Moottori, 7DF)</option>
             <option value="CUSTOM">Mukautettu osoite...</option>
@@ -94,7 +95,7 @@
             <button class="action-btn" id="readSelectedBtn" style="background:#d97706;">LUE VALITUSTA</button>
             <button class="action-btn" id="readAllBtn" style="background:#b45309;">LUE KAIKISTA</button>
         </div>
-        <p style="font-size: 0.65rem; color: #9ca3af; margin-top: 5px; margin-bottom: 0;">Huom: Lukemiseen käytetään ylempänä valittua komentoa (esim. 19 02 0D).</p>
+        <p style="font-size: 0.65rem; color: #9ca3af; margin-top: 5px; margin-bottom: 0;">Huom: Ohjelma päättelee komennon itse. Se kokeilee automaattisesti sekä UDS- että OBD2-komentoja laitteen lukemiseksi.</p>
     </div>
 
     <button id="toggleEvBtn">⚡ SÄHKÖAUTON SOH-TARKASTUS</button>
@@ -277,6 +278,7 @@
         log("Alustus valmis.", "info");
     }
 
+    // MANUAALINEN LÄHETÄ KOMENTO -NAPPI (Pidetään alkuperäisenä)
     document.getElementById('sendBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
 
@@ -381,7 +383,8 @@
         }
     });
 
-    async function readDiscoveredModule(addr, cmd) {
+    // PÄIVITETTY: Älykäs, automaattinen lukutoiminto
+    async function readDiscoveredModule(addr) {
         if (addr.length <= 3) {
             await sendCommand("ATSP6", 300);
         } else if (addr.length === 6) {
@@ -396,28 +399,29 @@
             log("-> UDS herätys (10 03)", "info");
             await sendCommand("1003", addr.length === 6 ? 3500 : 800); 
         }
-        await sendCommand(cmd, 2500);
+        
+        // Lähetetään automaattisesti molemmat kyselyt!
+        log("-> Kysytään UDS-koodit...", "info");
+        await sendCommand("19020D", 2000);
+        log("-> Kysytään OBD2-koodit...", "info");
+        await sendCommand("03", 2000);
     }
 
     document.getElementById('readSelectedBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         let addr = document.getElementById('foundSelect').value;
-        let cmd = document.getElementById('cmdSelect').value;
-        if (cmd === 'CUSTOM') cmd = document.getElementById('customCmd').value.trim();
         
         log(`--- Luetaan valittua: ${addr} ---`, "info");
-        await readDiscoveredModule(addr, cmd);
+        await readDiscoveredModule(addr);
     });
 
     document.getElementById('readAllBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
-        let cmd = document.getElementById('cmdSelect').value;
-        if (cmd === 'CUSTOM') cmd = document.getElementById('customCmd').value.trim();
         
         log(`--- LUETAAN KAIKKI LÖYTYNEET (${discoveredModules.length} kpl) ---`, "info");
         for(let addr of discoveredModules) {
             log(`-> Luku käynnissä: ${addr}`, "info");
-            await readDiscoveredModule(addr, cmd);
+            await readDiscoveredModule(addr);
         }
         log("--- KAIKKI OHJAINLAITTEET LUETTU ---", "info");
     });
