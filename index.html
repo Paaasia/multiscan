@@ -72,7 +72,12 @@
 
         <label class="checkbox-row">
             <input type="checkbox" id="wakeupCheck"> 
-            Lähetä UDS-herätys (10 03) ensin
+            Lähetä UDS-herätys (10 03) ensin kohdelaitteelle
+        </label>
+        
+        <label class="checkbox-row" style="color: #fcd34d;">
+            <input type="checkbox" id="vagWakeupCheck"> 
+            🔥 VAG UDS Wake-Up (Herätä J533 Gateway ensin)
         </label>
 
         <div class="row">
@@ -278,7 +283,15 @@
         log("Alustus valmis.", "info");
     }
 
-    // MANUAALINEN LÄHETÄ KOMENTO -NAPPI (Pidetään alkuperäisenä)
+    // UUSI FUNKTIO: VAG Gateway Herätys
+    async function triggerVagWakeup() {
+        log("--- VAG Gateway (710) Herätys ---", "info");
+        await sendCommand("ATSP6", 300);
+        await sendCommand("AT SH 710", 300);
+        await sendCommand("ATAR", 300);
+        await sendCommand("1003", 1500); // Extended Diagnostic Session
+    }
+
     document.getElementById('sendBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
 
@@ -288,6 +301,11 @@
         if (cmd === 'CUSTOM') cmd = document.getElementById('customCmd').value.trim();
 
         log("--- Uusi kysely ---", "info");
+
+        // VAG HERÄTYS (Jos valittu)
+        if (document.getElementById('vagWakeupCheck').checked) {
+            await triggerVagWakeup();
+        }
         
         if (header !== "7DF") {
             if (header.length <= 3) {
@@ -319,6 +337,11 @@
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
         discoveredModules = [];
         document.getElementById('foundModulesSection').style.display = 'none';
+
+        // VAG HERÄTYS (Jos valittu)
+        if (document.getElementById('vagWakeupCheck').checked) {
+            await triggerVagWakeup();
+        }
         
         const addrsToTest = [
             "710", "713", "714", "715", "716", "717", "720", "726", 
@@ -383,7 +406,6 @@
         }
     });
 
-    // PÄIVITETTY: Älykäs, automaattinen lukutoiminto
     async function readDiscoveredModule(addr) {
         if (addr.length <= 3) {
             await sendCommand("ATSP6", 300);
@@ -400,7 +422,6 @@
             await sendCommand("1003", addr.length === 6 ? 3500 : 800); 
         }
         
-        // Lähetetään automaattisesti molemmat kyselyt!
         log("-> Kysytään UDS-koodit...", "info");
         await sendCommand("19020D", 2000);
         log("-> Kysytään OBD2-koodit...", "info");
@@ -411,6 +432,11 @@
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         let addr = document.getElementById('foundSelect').value;
         
+        // VAG HERÄTYS (Jos valittu)
+        if (document.getElementById('vagWakeupCheck').checked) {
+            await triggerVagWakeup();
+        }
+
         log(`--- Luetaan valittua: ${addr} ---`, "info");
         await readDiscoveredModule(addr);
     });
@@ -418,6 +444,11 @@
     document.getElementById('readAllBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         
+        // VAG HERÄTYS (Jos valittu)
+        if (document.getElementById('vagWakeupCheck').checked) {
+            await triggerVagWakeup();
+        }
+
         log(`--- LUETAAN KAIKKI LÖYTYNEET (${discoveredModules.length} kpl) ---`, "info");
         for(let addr of discoveredModules) {
             log(`-> Luku käynnissä: ${addr}`, "info");
