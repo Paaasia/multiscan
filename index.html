@@ -86,6 +86,12 @@
         </div>
     </div>
 
+    <div id="dtcSection" class="card" style="display:none; margin-top: 10px; border-left: 4px solid #ef4444; background: #2e1010;">
+        <div class="label" style="color: #fca5a5;">⚠️ Löydetyt Vikakoodit</div>
+        <div id="dtcList" style="font-size: 0.85rem; color: #fecaca; max-height: 200px; overflow-y: auto; line-height: 1.4;">
+            </div>
+    </div>
+
     <button id="toggleScanBtn">🔍 ETSI AUTON OHJAINLAITTEET (SKANNAUS)</button>
     <div id="scanSection" class="card scan-card">
         <div class="label">Automaattinen CAN/KWP-verkon skannaus</div>
@@ -126,15 +132,41 @@
     
     let discoveredModules = [];
     let lastResponseStr = ""; 
+    
+    // UUSI: Vikakooditietokanta
+    let dtcDatabase = {};
 
     const logBox = document.getElementById('log');
 
-    // UUSI OMINAISUUS: Palautetaan selaimen muistista vanha loki, jos sellainen on
+    // Palautetaan selaimen muistista vanha loki
     const savedLog = localStorage.getItem('nexlink_log');
     if (savedLog) {
         logBox.innerHTML = savedLog;
         setTimeout(() => logBox.scrollTop = logBox.scrollHeight, 100);
     }
+
+    // UUSI: Palautetaan selaimen muistista vanhat vikakoodit
+    const savedDtc = localStorage.getItem('nexlink_dtc');
+    if (savedDtc && savedDtc.trim() !== '') {
+        document.getElementById('dtcList').innerHTML = savedDtc;
+        document.getElementById('dtcSection').style.display = 'block';
+    }
+
+    // Ladataan tietokanta automaattisesti käynnistyessä
+    async function loadDTCDatabase() {
+        try {
+            const response = await fetch('vikakoodit.json');
+            if(response.ok) {
+                dtcDatabase = await response.json();
+                log("-> Vikakooditietokanta ladattu (" + Object.keys(dtcDatabase).length + " koodia).", "info");
+            } else {
+                log("-> Huom: vikakoodit.json -tietokantaa ei löytynyt samasta kansiosta.", "info");
+            }
+        } catch(e) {
+            log("-> Huom: Virhe vikakooditietokannan latauksessa.", "info");
+        }
+    }
+    loadDTCDatabase();
 
     const log = (msg, type = 'info') => { 
         let colorClass = type === 'tx' ? 'log-tx' : (type === 'rx' ? 'log-rx' : 'log-info');
@@ -142,9 +174,83 @@
         logBox.innerHTML += `<span class="${colorClass}">${prefix}${msg}</span><br>`; 
         logBox.scrollTop = logBox.scrollHeight;
         
-        // UUSI OMINAISUUS: Tallennetaan jatkuvasti välimuistiin
         localStorage.setItem('nexlink_log', logBox.innerHTML);
     };
+
+    // UUSI FUNKTIO: Käännetään 2 Hex-tavua standardiksi vikakoodiksi (esim 01 33 -> P0133)
+    function decodeOBD2DTC(byte1, byte2) {
+        if (!byte1 || !byte2) return "P0000";
+        const letters = ["P", "C", "B", "U"];
+        let b1 = parseInt(byte1, 16);
+        let b2 = parseInt(byte2, 16);
+        if (isNaN(b1) || isNaN(b2)) return "P0000";
+        
+        let letter = letters[(b1 >> 6) & 0x03];
+        let digit2 = (b1 >> 4) & 0x03;
+        let digit3 = b1 & 0x0F;
+        let digit4 = (b2 >> 4) & 0x0F;
+        let digit5 = b2 & 0x0F;
+        
+        return `${letter}${digit2}${digit3.toString(16).toUpperCase()}${digit4.toString(16).toUpperCase()}${digit5.toString(16).toUpperCase()}`;
+    }
+
+    // UUSI FUNKTIO: Lisätään koodi ruudulle ja haetaan selitys JSON:sta
+    function addDTC(code, module) {
+        // Yritetään etsiä isolla, pienellä tai ilman väliviivoja
+        let desc = dtcDatabase[code] || dtcDatabase[code.toLowerCase()] || dtcDatabase[code.replace(/-/g, "")] || "Tuntematon vikakoodi (ei tietokannassa)";
+        let displayStr = `<div style="margin-bottom: 4px;"><strong>[${module}]</strong> <span style="color: #f87171;">${code}</span>: ${desc}</div>`;
+        
+        let dtcSec = document.getElementById('dtcSection');
+        let dtcList = document.getElementById('dtcList');
+        dtcSec.style.display = 'block';
+        
+        if (!dtcList.innerHTML.includes(code)) {
+            dtcList.innerHTML += displayStr;
+            localStorage.setItem('nexlink_dtc', dtcList.innerHTML); // Tallennetaan muistiin
+        }
+    }
+
+    // UUSI FUNKTIO: Etsitään datalokista onnistuneita lukuja (43 tai 59)
+    function checkAndParseDTC(line) {
+        // Poistetaan mahdolliset "0: " tai monirivisten ISO-TP otsikot
+        let cleanLine = line.replace(/^[0-9A-F]+:\s/i, '').replace(/^[0-9A-F]{3}\s*$/, ''); 
+        let parts = cleanLine.trim().split(/\s+/);
+        
+        let payloadStart = -1;
+        for (let i = 0; i < parts.length; i++) {
+            if (parts[i] === "43" || parts[i] === "59") {
+                payloadStart = i;
+                break;
+            }
+        }
+
+        if (payloadStart === -1) return;
+
+        let moduleAddr = parts[0]; 
+        if (moduleAddr === "43" || moduleAddr === "59") moduleAddr = "Yksikkö"; 
+
+        if (parts[payloadStart] === "43") {
+            let i = payloadStart + 1;
+            while (i + 1 < parts.length) {
+                let b1 = parts[i];
+                let b2 = parts[i+1];
+                if (b1 !== "00" || b2 !== "00") {
+                    let code = decodeOBD2DTC(b1, b2);
+                    if (code !== "P0000" && !code.includes("NaN")) addDTC(code, moduleAddr);
+                }
+                i += 2;
+            }
+        } else if (parts[payloadStart] === "59" && parts[payloadStart+1] === "02") {
+            let i = payloadStart + 3; // Ohitetaan 59, 02 ja StatusMask
+            while (i + 2 < parts.length) { 
+                let b1 = parts[i];
+                let b2 = parts[i+1];
+                let code = decodeOBD2DTC(b1, b2);
+                if (code !== "P0000" && !code.includes("NaN")) addDTC(code, moduleAddr);
+                i += 4; // UDS vikakoodit ovat yleensä 4 tavua pitkiä vastauksessa (3 koodia, 1 status)
+            }
+        }
+    }
 
     document.getElementById('toggleEvBtn').addEventListener('click', () => {
         const evSec = document.getElementById('evSection');
@@ -237,10 +343,13 @@
         document.getElementById('customCmd').style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
     });
     
-    // UUSI OMINAISUUS: Poistaa muistin myös "kovalevyltä" kun painetaan nappia
+    // PÄIVITETTY: Nappi tyhjentää lokin, Local Storagen JA vikakoodilistan!
     document.getElementById('clearLogBtn').addEventListener('click', () => {
         logBox.innerHTML = '';
         localStorage.removeItem('nexlink_log');
+        document.getElementById('dtcList').innerHTML = '';
+        document.getElementById('dtcSection').style.display = 'none';
+        localStorage.removeItem('nexlink_dtc');
     });
 
     document.getElementById('connectBtn').addEventListener('click', async () => {
@@ -266,6 +375,7 @@
         } catch (e) { log("Virhe: " + e.message, "info"); }
     });
 
+    // PÄIVITETTY: Heitetään vastausrivit myös DTC-purkajalle
     function handleResponse(e) {
         currentBuffer += decoder.decode(e.target.value);
         if (currentBuffer.includes(">")) {
@@ -273,7 +383,10 @@
             if (cleanRes) {
                 lastResponseStr = cleanRes; 
                 let lines = cleanRes.split('\r').filter(l => l.trim() !== '');
-                lines.forEach(line => log(line, "rx"));
+                lines.forEach(line => {
+                    log(line, "rx");
+                    checkAndParseDTC(line); // UUSI: Purkualgoritmi käynnistyy tässä!
+                });
             }
             currentBuffer = "";
         }
