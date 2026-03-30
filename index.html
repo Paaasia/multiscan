@@ -20,7 +20,7 @@
         .row { display: flex; justify-content: space-between; gap: 10px; }
         .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; margin-bottom: 15px; font-size: 0.85rem; color: #e5e7eb; cursor: pointer; }
         
-        #log { margin-top: 10px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #34d399; background: #000; padding: 12px; border-radius: 8px; height: 250px; overflow-y: auto; border: 1px solid #065f46; white-space: pre-wrap;}
+        #log { margin-top: 5px; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #34d399; background: #000; padding: 12px; border-radius: 8px; height: 250px; overflow-y: auto; border: 1px solid #065f46; white-space: pre-wrap;}
         .log-tx { color: #60a5fa; }
         .log-rx { color: #fcd34d; }
         .log-info { color: #9ca3af; }
@@ -121,6 +121,8 @@
         <p style="font-size: 0.65rem; color: #9ca3af; margin-top: 5px; margin-bottom: 0;">Huom: Tämä hakee akunhallinnan (BMS) raakadatan lokiin. Prosentin laskenta riippuu täysin automallista.</p>
     </div>
 
+    <button id="copyLogBtn" style="background: #4b5563; margin-top: 15px; margin-bottom: 0;">📋 KOPIOI LOKI</button>
+    
     <div id="log"><span class="log-info">Odottaa yhdistämistä...</span><br></div>
 </div>
 
@@ -133,7 +135,6 @@
     let discoveredModules = [];
     let lastResponseStr = ""; 
     
-    // UUSI: Vikakooditietokanta
     let dtcDatabase = {};
 
     const logBox = document.getElementById('log');
@@ -145,7 +146,7 @@
         setTimeout(() => logBox.scrollTop = logBox.scrollHeight, 100);
     }
 
-    // UUSI: Palautetaan selaimen muistista vanhat vikakoodit
+    // Palautetaan selaimen muistista vanhat vikakoodit
     const savedDtc = localStorage.getItem('nexlink_dtc');
     if (savedDtc && savedDtc.trim() !== '') {
         document.getElementById('dtcList').innerHTML = savedDtc;
@@ -177,7 +178,27 @@
         localStorage.setItem('nexlink_log', logBox.innerHTML);
     };
 
-    // UUSI FUNKTIO: Käännetään 2 Hex-tavua standardiksi vikakoodiksi (esim 01 33 -> P0133)
+    // UUSI: Lokin kopiointitoiminto
+    document.getElementById('copyLogBtn').addEventListener('click', () => {
+        const logText = document.getElementById('log').innerText;
+        navigator.clipboard.writeText(logText).then(() => {
+            const btn = document.getElementById('copyLogBtn');
+            const originalText = btn.innerText;
+            const originalBg = btn.style.background;
+            
+            btn.innerText = "✅ KOPIOITU!";
+            btn.style.background = "#059669";
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = originalBg;
+            }, 2000);
+        }).catch(err => {
+            console.error("Kopiointi epäonnistui", err);
+            alert("Lokin kopiointi epäonnistui selaimen rajoitusten vuoksi.");
+        });
+    });
+
     function decodeOBD2DTC(byte1, byte2) {
         if (!byte1 || !byte2) return "P0000";
         const letters = ["P", "C", "B", "U"];
@@ -194,9 +215,7 @@
         return `${letter}${digit2}${digit3.toString(16).toUpperCase()}${digit4.toString(16).toUpperCase()}${digit5.toString(16).toUpperCase()}`;
     }
 
-    // UUSI FUNKTIO: Lisätään koodi ruudulle ja haetaan selitys JSON:sta
     function addDTC(code, module) {
-        // Yritetään etsiä isolla, pienellä tai ilman väliviivoja
         let desc = dtcDatabase[code] || dtcDatabase[code.toLowerCase()] || dtcDatabase[code.replace(/-/g, "")] || "Tuntematon vikakoodi (ei tietokannassa)";
         let displayStr = `<div style="margin-bottom: 4px;"><strong>[${module}]</strong> <span style="color: #f87171;">${code}</span>: ${desc}</div>`;
         
@@ -206,13 +225,11 @@
         
         if (!dtcList.innerHTML.includes(code)) {
             dtcList.innerHTML += displayStr;
-            localStorage.setItem('nexlink_dtc', dtcList.innerHTML); // Tallennetaan muistiin
+            localStorage.setItem('nexlink_dtc', dtcList.innerHTML); 
         }
     }
 
-    // UUSI FUNKTIO: Etsitään datalokista onnistuneita lukuja (43 tai 59)
     function checkAndParseDTC(line) {
-        // Poistetaan mahdolliset "0: " tai monirivisten ISO-TP otsikot
         let cleanLine = line.replace(/^[0-9A-F]+:\s/i, '').replace(/^[0-9A-F]{3}\s*$/, ''); 
         let parts = cleanLine.trim().split(/\s+/);
         
@@ -241,13 +258,13 @@
                 i += 2;
             }
         } else if (parts[payloadStart] === "59" && parts[payloadStart+1] === "02") {
-            let i = payloadStart + 3; // Ohitetaan 59, 02 ja StatusMask
+            let i = payloadStart + 3; 
             while (i + 2 < parts.length) { 
                 let b1 = parts[i];
                 let b2 = parts[i+1];
                 let code = decodeOBD2DTC(b1, b2);
                 if (code !== "P0000" && !code.includes("NaN")) addDTC(code, moduleAddr);
-                i += 4; // UDS vikakoodit ovat yleensä 4 tavua pitkiä vastauksessa (3 koodia, 1 status)
+                i += 4; 
             }
         }
     }
@@ -343,7 +360,6 @@
         document.getElementById('customCmd').style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
     });
     
-    // PÄIVITETTY: Nappi tyhjentää lokin, Local Storagen JA vikakoodilistan!
     document.getElementById('clearLogBtn').addEventListener('click', () => {
         logBox.innerHTML = '';
         localStorage.removeItem('nexlink_log');
@@ -375,7 +391,6 @@
         } catch (e) { log("Virhe: " + e.message, "info"); }
     });
 
-    // PÄIVITETTY: Heitetään vastausrivit myös DTC-purkajalle
     function handleResponse(e) {
         currentBuffer += decoder.decode(e.target.value);
         if (currentBuffer.includes(">")) {
@@ -385,7 +400,7 @@
                 let lines = cleanRes.split('\r').filter(l => l.trim() !== '');
                 lines.forEach(line => {
                     log(line, "rx");
-                    checkAndParseDTC(line); // UUSI: Purkualgoritmi käynnistyy tässä!
+                    checkAndParseDTC(line); 
                 });
             }
             currentBuffer = "";
