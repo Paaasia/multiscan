@@ -178,7 +178,7 @@
         localStorage.setItem('nexlink_log', logBox.innerHTML);
     };
 
-    // UUSI: Lokin kopiointitoiminto
+    // Lokin kopiointitoiminto
     document.getElementById('copyLogBtn').addEventListener('click', () => {
         const logText = document.getElementById('log').innerText;
         navigator.clipboard.writeText(logText).then(() => {
@@ -370,6 +370,11 @@
 
     document.getElementById('connectBtn').addEventListener('click', async () => {
         try {
+            // PÄIVITYS: Nollataan löytyneet purkit aina kun yhdistetään uudelleen!
+            discoveredModules = [];
+            document.getElementById('foundSelect').innerHTML = '';
+            document.getElementById('foundModulesSection').style.display = 'none';
+
             log("Etsitään laitteita...", "info");
             device = await navigator.bluetooth.requestDevice({
                 filters: [{ namePrefix: 'NEXAS' }, { namePrefix: 'NexLink' }, { namePrefix: 'OBD' }],
