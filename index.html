@@ -154,7 +154,8 @@
 
     async function loadDTCDatabase() {
         try {
-            const response = await fetch('vikakoodit.json');
+            // PÄIVITYS: Lisätty no-store välimuistin ohittamiseksi
+            const response = await fetch('vikakoodit.json', { cache: 'no-store' });
             if(response.ok) {
                 dtcDatabase = await response.json();
                 log("-> Vikakooditietokanta ladattu (" + Object.keys(dtcDatabase).length + " koodia).", "info");
@@ -232,7 +233,6 @@
         
         let payloadStart = -1;
         for (let i = 0; i < parts.length; i++) {
-            // PÄIVITETTY: Lisätty "58" KWP2000 vastauksille
             if (parts[i] === "43" || parts[i] === "59" || parts[i] === "58") {
                 payloadStart = i;
                 break;
@@ -265,14 +265,13 @@
                 i += 4; 
             }
         } else if (parts[payloadStart] === "58") {
-            // PÄIVITETTY: UUSI KWP2000 PURKAJA (Vastaus: 58 <NumberOfDTC> <High> <Low> <Status>)
-            let i = payloadStart + 2; // Ohitetaan 58 ja NumberOfDTCs
+            let i = payloadStart + 2; 
             while (i + 2 < parts.length) {
                 let b1 = parts[i];
                 let b2 = parts[i+1];
                 let code = decodeOBD2DTC(b1, b2);
                 if (code !== "P0000" && !code.includes("NaN")) addDTC(code, moduleAddr);
-                i += 3; // KWP:ssa koodi on aina 3 tavua vastauksessa
+                i += 3; 
             }
         }
     }
@@ -577,7 +576,6 @@
         log("-> Kysytään UDS-koodit...", "info");
         await sendCommand("19020D", 2000);
         
-        // PÄIVITETTY: Uusi KWP-lukukomento
         log("-> Kysytään KWP-koodit...", "info");
         await sendCommand("18000000", 2000);
         
