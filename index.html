@@ -81,6 +81,11 @@
             🔥 VAG UDS Wake-Up (Herätä J533 Gateway ensin)
         </label>
 
+        <label class="checkbox-row" style="color: #60a5fa;">
+            <input type="checkbox" id="msCanCheck"> 
+            🚙 Ford/Volvo MS-CAN -tila (vLinker FD+ Pins 3/11)
+        </label>
+
         <div class="row">
             <button class="action-btn" id="sendBtn" style="background:#0284c7;">LÄHETÄ KOMENTO</button>
             <button class="action-btn" id="clearLogBtn" style="background:#4b5563;">TYHJENNÄ LOKI</button>
@@ -382,7 +387,6 @@
 
             log("Etsitään laitteita...", "info");
             
-            // PÄIVITETTY: Lisätty vLinker filtteriin ja uusi palvelu-UUID
             device = await navigator.bluetooth.requestDevice({
                 filters: [
                     { namePrefix: 'vLinker' }, 
@@ -391,17 +395,17 @@
                     { namePrefix: 'OBD' }
                 ],
                 optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb', // Uusi vLinker palvelu
-                    '0000fff0-0000-1000-8000-00805f9b34fb'  // Vanha NexLink palvelu
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '0000fff0-0000-1000-8000-00805f9b34fb' 
                 ]
             });
             const gatt = await device.gatt.connect();
             
             let service;
             try {
-                service = await gatt.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb'); // Ensisijainen vLinker
+                service = await gatt.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb'); 
             } catch (err) {
-                service = await gatt.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb'); // Varalla vanha
+                service = await gatt.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb'); 
             }
 
             const chars = await service.getCharacteristics();
@@ -434,7 +438,6 @@
         }
     }
 
-    // PÄIVITETTY: Vakio-odotusaika pudotettu 500ms -> 100ms
     async function sendCommand(cmd, delay = 100) {
         if (!charWrite) return;
         log(cmd, "tx");
@@ -469,6 +472,8 @@
         if (header === 'CUSTOM') header = document.getElementById('customHeader').value.trim();
         let cmd = document.getElementById('cmdSelect').value;
         if (cmd === 'CUSTOM') cmd = document.getElementById('customCmd').value.trim();
+        
+        let isMsCan = document.getElementById('msCanCheck').checked;
 
         log("--- Uusi kysely ---", "info");
 
@@ -477,17 +482,26 @@
         }
         
         if (header !== "7DF") {
-            if (header.length <= 3) {
-                await sendCommand("ATSP6"); 
-            } else if (header.length === 6) {
-                await sendCommand("ATSP5"); 
+            if (isMsCan) {
+                if (header.length <= 3) {
+                    await sendCommand("STP53"); 
+                } else {
+                    await sendCommand("STP54"); 
+                }
             } else {
-                await sendCommand("ATSP7"); 
+                if (header.length <= 3) {
+                    await sendCommand("ATSP6"); 
+                } else if (header.length === 6) {
+                    await sendCommand("ATSP5"); 
+                } else {
+                    await sendCommand("ATSP7"); 
+                }
             }
             await sendCommand("AT SH " + header); 
             await sendCommand("ATAR"); 
         } else {
-            await sendCommand("ATSP0"); 
+            if (isMsCan) await sendCommand("STP53"); 
+            else await sendCommand("ATSP0"); 
             await sendCommand("ATAR"); 
             await sendCommand("AT CRA"); 
         }
@@ -503,7 +517,11 @@
     document.getElementById('startScanBtn').addEventListener('click', async () => {
         if (!charWrite) { alert("Yhdistä ensin lukijaan!"); return; }
         
+        let isMsCan = document.getElementById('msCanCheck').checked;
+        
         log("--- ALOITETAAN VERKON SKANNAUS ---", "info");
+        if (isMsCan) log("-> MS-CAN tila päällä (Nastat 3/11, 125kbps)", "info");
+        
         discoveredModules = [];
         document.getElementById('foundModulesSection').style.display = 'none';
 
@@ -518,26 +536,40 @@
             "18DA10F1", "18DA18F1", "18DA28F1", "18DA40F1", "18DA58F1", "18DA60F1"
         ];
         
-        // PÄIVITETTY: Viiveet poistettu, skannaus lentää
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
             lastResponseStr = ""; 
             
-            if (addr.length <= 3) {
-                await sendCommand("ATSP6", 50);
+            if (isMsCan) {
+                if (addr.length === 6) {
+                    log("-> KWP ohitettu (Ei MS-CAN tukea).", "info");
+                    continue; 
+                }
+                if (addr.length <= 3) {
+                    await sendCommand("STP53", 50);
+                } else {
+                    await sendCommand("STP54", 50);
+                }
                 await sendCommand("AT SH " + addr, 50);
                 await sendCommand("ATAR", 50);
                 await sendCommand("1003", 200); 
-            } else if (addr.length === 6) {
-                await sendCommand("ATSP5", 50);
-                await sendCommand("AT SH " + addr, 50);
-                await sendCommand("ATAR", 50);
-                await sendCommand("1003", 500); 
             } else {
-                await sendCommand("ATSP7", 50);
-                await sendCommand("AT SH " + addr, 50);
-                await sendCommand("ATAR", 50);
-                await sendCommand("1003", 200); 
+                if (addr.length <= 3) {
+                    await sendCommand("ATSP6", 50);
+                    await sendCommand("AT SH " + addr, 50);
+                    await sendCommand("ATAR", 50);
+                    await sendCommand("1003", 200); 
+                } else if (addr.length === 6) {
+                    await sendCommand("ATSP5", 50);
+                    await sendCommand("AT SH " + addr, 50);
+                    await sendCommand("ATAR", 50);
+                    await sendCommand("1003", 500); 
+                } else {
+                    await sendCommand("ATSP7", 50);
+                    await sendCommand("AT SH " + addr, 50);
+                    await sendCommand("ATAR", 50);
+                    await sendCommand("1003", 200); 
+                }
             }
 
             let res = lastResponseStr.toUpperCase();
@@ -576,19 +608,23 @@
     });
 
     async function readDiscoveredModule(addr) {
-        if (addr.length <= 3) {
-            await sendCommand("ATSP6", 50);
-        } else if (addr.length === 6) {
-            await sendCommand("ATSP5", 50);
+        let isMsCan = document.getElementById('msCanCheck').checked;
+        
+        if (isMsCan) {
+            if (addr.length <= 3) await sendCommand("STP53", 50);
+            else await sendCommand("STP54", 50);
         } else {
-            await sendCommand("ATSP7", 50);
+            if (addr.length <= 3) await sendCommand("ATSP6", 50);
+            else if (addr.length === 6) await sendCommand("ATSP5", 50);
+            else await sendCommand("ATSP7", 50);
         }
+
         await sendCommand("AT SH " + addr, 50); 
         await sendCommand("ATAR", 50); 
 
         if (document.getElementById('wakeupCheck').checked) {
             log("-> UDS herätys (10 03)", "info");
-            await sendCommand("1003", addr.length === 6 ? 500 : 200); 
+            await sendCommand("1003", addr.length === 6 && !isMsCan ? 500 : 200); 
         }
         
         log("-> Kysytään UDS-koodit...", "info");
