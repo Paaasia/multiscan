@@ -154,7 +154,6 @@
 
     async function loadDTCDatabase() {
         try {
-            // PÄIVITYS: Lisätty no-store välimuistin ohittamiseksi
             const response = await fetch('vikakoodit.json', { cache: 'no-store' });
             if(response.ok) {
                 dtcDatabase = await response.json();
@@ -382,12 +381,29 @@
             document.getElementById('foundModulesSection').style.display = 'none';
 
             log("Etsitään laitteita...", "info");
+            
+            // PÄIVITETTY: Lisätty vLinker filtteriin ja uusi palvelu-UUID
             device = await navigator.bluetooth.requestDevice({
-                filters: [{ namePrefix: 'NEXAS' }, { namePrefix: 'NexLink' }, { namePrefix: 'OBD' }],
-                optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
+                filters: [
+                    { namePrefix: 'vLinker' }, 
+                    { namePrefix: 'NEXAS' }, 
+                    { namePrefix: 'NexLink' }, 
+                    { namePrefix: 'OBD' }
+                ],
+                optionalServices: [
+                    '000018f0-0000-1000-8000-00805f9b34fb', // Uusi vLinker palvelu
+                    '0000fff0-0000-1000-8000-00805f9b34fb'  // Vanha NexLink palvelu
+                ]
             });
             const gatt = await device.gatt.connect();
-            const service = await gatt.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
+            
+            let service;
+            try {
+                service = await gatt.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb'); // Ensisijainen vLinker
+            } catch (err) {
+                service = await gatt.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb'); // Varalla vanha
+            }
+
             const chars = await service.getCharacteristics();
             for (const c of chars) {
                 if (c.properties.write || c.properties.writeWithoutResponse) charWrite = c;
@@ -418,7 +434,8 @@
         }
     }
 
-    async function sendCommand(cmd, delay = 500) {
+    // PÄIVITETTY: Vakio-odotusaika pudotettu 500ms -> 100ms
+    async function sendCommand(cmd, delay = 100) {
         if (!charWrite) return;
         log(cmd, "tx");
         await charWrite.writeValueWithoutResponse(encoder.encode(cmd + '\r'));
@@ -426,23 +443,23 @@
     }
 
     async function initELM327() {
-        await sendCommand("ATZ", 1000);   
+        await sendCommand("ATZ", 500);   
         await sendCommand("ATE0");        
         await sendCommand("ATL0");        
         await sendCommand("ATH1");        
         await sendCommand("ATSP0"); 
         log("Kätellään autoa (0100)...", "info");
-        await sendCommand("0100", 6000); 
+        await sendCommand("0100", 1000); 
         await sendCommand("ATDP");       
         log("Alustus valmis.", "info");
     }
 
     async function triggerVagWakeup() {
         log("--- VAG Gateway (710) Herätys ---", "info");
-        await sendCommand("ATSP6", 300);
-        await sendCommand("AT SH 710", 300);
-        await sendCommand("ATAR", 300);
-        await sendCommand("1003", 1500); 
+        await sendCommand("ATSP6", 100);
+        await sendCommand("AT SH 710", 100);
+        await sendCommand("ATAR", 100);
+        await sendCommand("1003", 400); 
     }
 
     document.getElementById('sendBtn').addEventListener('click', async () => {
@@ -477,10 +494,10 @@
 
         if (document.getElementById('wakeupCheck').checked) {
             log("-> UDS herätys (10 03)", "info");
-            await sendCommand("1003", 800);
+            await sendCommand("1003", 300);
         }
 
-        await sendCommand(cmd, 2000);
+        await sendCommand(cmd, 500);
     });
 
     document.getElementById('startScanBtn').addEventListener('click', async () => {
@@ -501,25 +518,26 @@
             "18DA10F1", "18DA18F1", "18DA28F1", "18DA40F1", "18DA58F1", "18DA60F1"
         ];
         
+        // PÄIVITETTY: Viiveet poistettu, skannaus lentää
         for(let addr of addrsToTest) {
             log(`-> Koputetaan osoitteeseen: ${addr}...`, "info");
             lastResponseStr = ""; 
             
             if (addr.length <= 3) {
-                await sendCommand("ATSP6", 300);
-                await sendCommand("AT SH " + addr, 300);
-                await sendCommand("ATAR", 300);
-                await sendCommand("1003", 1000); 
+                await sendCommand("ATSP6", 50);
+                await sendCommand("AT SH " + addr, 50);
+                await sendCommand("ATAR", 50);
+                await sendCommand("1003", 200); 
             } else if (addr.length === 6) {
-                await sendCommand("ATSP5", 300);
-                await sendCommand("AT SH " + addr, 300);
-                await sendCommand("ATAR", 300);
-                await sendCommand("1003", 3500); 
+                await sendCommand("ATSP5", 50);
+                await sendCommand("AT SH " + addr, 50);
+                await sendCommand("ATAR", 50);
+                await sendCommand("1003", 500); 
             } else {
-                await sendCommand("ATSP7", 300);
-                await sendCommand("AT SH " + addr, 300);
-                await sendCommand("ATAR", 300);
-                await sendCommand("1003", 1000); 
+                await sendCommand("ATSP7", 50);
+                await sendCommand("AT SH " + addr, 50);
+                await sendCommand("ATAR", 50);
+                await sendCommand("1003", 200); 
             }
 
             let res = lastResponseStr.toUpperCase();
@@ -559,28 +577,28 @@
 
     async function readDiscoveredModule(addr) {
         if (addr.length <= 3) {
-            await sendCommand("ATSP6", 300);
+            await sendCommand("ATSP6", 50);
         } else if (addr.length === 6) {
-            await sendCommand("ATSP5", 300);
+            await sendCommand("ATSP5", 50);
         } else {
-            await sendCommand("ATSP7", 300);
+            await sendCommand("ATSP7", 50);
         }
-        await sendCommand("AT SH " + addr, 300); 
-        await sendCommand("ATAR", 300); 
+        await sendCommand("AT SH " + addr, 50); 
+        await sendCommand("ATAR", 50); 
 
         if (document.getElementById('wakeupCheck').checked) {
             log("-> UDS herätys (10 03)", "info");
-            await sendCommand("1003", addr.length === 6 ? 3500 : 800); 
+            await sendCommand("1003", addr.length === 6 ? 500 : 200); 
         }
         
         log("-> Kysytään UDS-koodit...", "info");
-        await sendCommand("19020D", 2000);
+        await sendCommand("19020D", 400);
         
         log("-> Kysytään KWP-koodit...", "info");
-        await sendCommand("18000000", 2000);
+        await sendCommand("18000000", 400);
         
         log("-> Kysytään OBD2-koodit...", "info");
-        await sendCommand("03", 2000);
+        await sendCommand("03", 400);
     }
 
     document.getElementById('readSelectedBtn').addEventListener('click', async () => {
@@ -621,21 +639,21 @@
             await sendCommand("AT SH 7E4"); 
             await sendCommand("ATAR");
             log("-> Kysytään BMS-data (Komento: 2105)", "info");
-            await sendCommand("2105", 2500);
+            await sendCommand("2105", 500);
         } 
         else if (evModel === "VAG_MEB") {
             await sendCommand("ATSP6");
             await sendCommand("AT SH 176"); 
             await sendCommand("ATAR");
             log("-> Kysytään BMS-data (Komento: 22 02 8C)", "info");
-            await sendCommand("22028C", 2500);
+            await sendCommand("22028C", 500);
         } 
         else if (evModel === "NISSAN_LEAF") {
             await sendCommand("ATSP6");
             await sendCommand("AT SH 79B"); 
             await sendCommand("ATAR");
             log("-> Kysytään BMS-data (Komento: 2101)", "info");
-            await sendCommand("2101", 2500);
+            await sendCommand("2101", 500);
         }
 
         log("- Kysely valmis. Jos sait dataa (esim. 61 05...),", "info");
